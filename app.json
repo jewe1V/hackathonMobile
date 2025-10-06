@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "hackathonMobile",
+    "name": "Цифровой Кабинет Депутата",
     "slug": "hackathonMobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hackathonmobile",
+    "scheme": "depute",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
