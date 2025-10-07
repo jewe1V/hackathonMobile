@@ -1,18 +1,51 @@
-import { Stack } from "expo-router";
+import { Tabs } from "expo-router";
+import { Ionicons } from '@expo/vector-icons';
 
-const StackLayout = () => {
-  return (
-      <Stack>
-        <Stack.Screen
-            name="index"
-            options={{ headerShown: false }}
-        />
-          <Stack.Screen
-              name="(login)/LoginScreen"
-              options={{ headerShown: false }}
-          />
-      </Stack>
-  );
-}
-
-export default StackLayout;
+export default () => {
+    return (
+        <Tabs
+            screenOptions={{
+                headerShown: false,
+                tabBarActiveTintColor: "#1e90ff",
+                tabBarInactiveTintColor: "gray",
+            }}
+        >
+            <Tabs.Screen
+                name="index"
+                options={{
+                    tabBarLabel: "",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="newspaper-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="(screens)/EventsScreen"
+                options={{
+                    tabBarLabel: "",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="calendar-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="(screens)/ProfileScreen"
+                options={{
+                    tabBarLabel: "",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="person-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="(screens)/CatalogScreen"
+                options={{
+                    tabBarLabel: "",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="document-attach-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+        </Tabs>
+    );
+};

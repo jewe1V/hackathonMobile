@@ -1,15 +1,15 @@
 import { Post } from '@/models/Event';
-import { POSTS } from '@/api/mockData';
 import { PostCard } from '@/components/PostCard';
 import { Header } from '@/components/Header';
 import { ModalScreen } from "@/components/ModalScreen";
+import asyncStorage from "@react-native-async-storage/async-storage/src/AsyncStorage";
 import {
     useFonts as usePlayfair,
     PlayfairDisplay_700Bold,
     PlayfairDisplay_600SemiBold,
 } from '@expo-google-fonts/playfair-display';
 import { useFonts as useInterFonts, Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     View,
     StyleSheet,
@@ -19,17 +19,20 @@ import {
     ActivityIndicator,
     Share,
     Platform,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import { ViewToken } from 'react-native';
 
-// Типы для пропсов компонентов
+const API_URL = 'https://localhost:7112/api/Posts';
+const PAGE_SIZE = 20;
+
+
+
 interface LoadingScreenProps {}
 
-// Компонент для экрана загрузки с безопасными областями
 const LoadingScreen: React.FC<LoadingScreenProps> = () => {
     const insets = useSafeAreaInsets();
-
     return (
         <View style={[styles.loading, { paddingTop: insets.top }]}>
             <ActivityIndicator size="large" color="#0a58ff" />
@@ -37,23 +40,22 @@ const LoadingScreen: React.FC<LoadingScreenProps> = () => {
     );
 };
 
-// Основной компонент приложения
 const AppContent: React.FC = () => {
-    // fonts
     const [pfLoaded] = usePlayfair({ PlayfairDisplay_700Bold, PlayfairDisplay_600SemiBold });
     const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_600SemiBold });
     const fontsLoaded = pfLoaded && interLoaded;
 
-    const [posts, setPosts] = useState<Post[]>(POSTS);
+    const [posts, setPosts] = useState<Post[]>([]);
     const [modalPost, setModalPost] = useState<Post | null>(null);
     const [viewable, setViewable] = useState<Record<string, boolean>>({});
+    const [skip, setSkip] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
 
     const insets = useSafeAreaInsets();
 
-
     const viewConfigRef = useRef({ viewAreaCoveragePercentThreshold: 40 });
     const viewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-        // mark viewable item ids true
         setViewable((prev) => {
             const copy = { ...prev };
             viewableItems.forEach((v) => {
@@ -64,6 +66,42 @@ const AppContent: React.FC = () => {
             return copy;
         });
     }).current;
+
+    const fetchPosts = useCallback(async (offset: number) => {
+        if (loading || !hasMore) return;
+
+        setLoading(true);
+        try {
+            const TOKEN = await asyncStorage.getItem('authToken');
+            const response = await fetch(`${API_URL}?skip=${offset}&take=${PAGE_SIZE}`, {
+                headers: {
+                    'accept': 'text/plain',
+                    'Authorization': `Bearer ${TOKEN}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`Ошибка загрузки: ${response.status}`);
+            }
+
+            const data: Post[] = await response.json();
+            if (data.length === 0) {
+                setHasMore(false);
+            } else {
+                setPosts((prev) => {
+                    const existingIds = new Set(prev.map((p) => p.id));
+                    const filtered = data.filter((p) => !existingIds.has(p.id));
+                    return [...prev, ...filtered];
+                });
+                setSkip(offset + PAGE_SIZE);
+            }
+        } catch (err: any) {
+            console.error(err);
+            Alert.alert('Ошибка', 'Не удалось загрузить новости');
+        } finally {
+            setLoading(false);
+        }
+    }, [loading, hasMore]);
 
     const onShare = useCallback(async (post: Post) => {
         try {
@@ -78,17 +116,14 @@ const AppContent: React.FC = () => {
     }, []);
 
     const loadMore = useCallback(() => {
-        // add mock more
-        setTimeout(() => {
-            setPosts((prev) => {
-                const more = prev.slice(0, 3).map((p, idx) => ({
-                    ...p,
-                    id: `more-${Date.now()}-${idx}`
-                }));
-                return [...prev, ...more];
-            });
-        }, 800);
-    }, []);
+        if (hasMore && !loading) {
+            fetchPosts(skip);
+        }
+    }, [fetchPosts, skip, hasMore, loading]);
+
+    useEffect(() => {
+        fetchPosts(0);
+    }, [fetchPosts]);
 
     if (!fontsLoaded) {
         return <LoadingScreen />;
@@ -97,12 +132,11 @@ const AppContent: React.FC = () => {
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar barStyle="dark-content" backgroundColor="#f6f7fb" />
-            <Header title={"Новости"}/>
+            <Header title={"Новости"} />
 
-            {/* List */}
             <FlatList
                 data={posts}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
                 contentContainerStyle={{
                     paddingBottom: 120,
                     paddingHorizontal: 2,
@@ -119,9 +153,13 @@ const AppContent: React.FC = () => {
                 onEndReachedThreshold={0.4}
                 onViewableItemsChanged={viewableItemsChanged}
                 viewabilityConfig={viewConfigRef.current}
+                ListFooterComponent={
+                    loading ? (
+                        <ActivityIndicator style={{ marginVertical: 16 }} color="#0a58ff" />
+                    ) : null
+                }
             />
 
-            {/* Modal */}
             <Modal visible={!!modalPost} animationType="slide" onRequestClose={() => setModalPost(null)}>
                 <ModalScreen
                     modalPost={modalPost}
@@ -131,7 +169,7 @@ const AppContent: React.FC = () => {
             </Modal>
         </View>
     );
-}
+};
 
 const App: React.FC = () => {
     return (
@@ -139,7 +177,7 @@ const App: React.FC = () => {
             <AppContent />
         </SafeAreaProvider>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -152,86 +190,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#f6f7fb'
-    },
-    bottomNav: {
-        position: 'absolute',
-        left: 16,
-        right: 16,
-        height: 66,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        elevation: 8,
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
-    },
-    navItem: {
-        alignItems: 'center'
-    },
-    navText: {
-        fontSize: 13,
-        color: '#6b7280',
-        fontFamily: 'Inter_400Regular'
-    },
-    navActive: {
-        color: '#0a58ff',
-        fontFamily: 'Inter_600SemiBold'
-    },
-
-    /* modal */
-    modalContainer: {
-        flex: 1,
-        backgroundColor: '#fff'
-    },
-    modalHeader: {
-        height: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    modalClose: {
-        fontSize: 22,
-        color: '#0a58ff'
-    },
-    modalShare: {
-        fontSize: 20,
-        color: '#0a58ff'
-    },
-    modalImage: {
-        width: '100%',
-        height: 220,
-        borderRadius: 12,
-        marginBottom: 16
-    },
-    modalCate: {
-        fontSize: 13,
-        color: '#0a58ff',
-        marginBottom: 8,
-        fontFamily: 'Inter_600SemiBold'
-    },
-    modalTitle: {
-        fontSize: 22,
-        marginBottom: 8,
-        fontFamily: 'PlayfairDisplay_700Bold',
-        color: '#0b2140'
-    },
-    modalDate: {
-        fontSize: 12,
-        color: '#7b8794',
-        marginBottom: 12,
-        fontFamily: 'Inter_400Regular'
-    },
-    modalBody: {
-        fontSize: 16,
-        color: '#344054',
-        lineHeight: 22,
-        fontFamily: 'Inter_400Regular'
     },
 });
 

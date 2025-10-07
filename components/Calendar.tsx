@@ -1,30 +1,26 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, ActivityIndicator} from 'react-native';
 import {Event} from "@/models/Event";
-
+import { useFonts as useInterFonts, Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import {useFonts as usePlayfair} from "@expo-google-fonts/playfair-display/useFonts";
+import {PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold} from "@expo-google-fonts/playfair-display";
+import {useSafeAreaInsets} from "react-native-safe-area-context";
 interface CalendarProps {
     selectedDate: string | undefined;
     onSelectDate: (date: string) => void;
     events: Event[];
+    onMonthChange?: (year: number, month: number) => void;
 }
 
-export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, events }) => {
+export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, events, onMonthChange }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-
+    const [pfLoaded] = usePlayfair({ PlayfairDisplay_700Bold, PlayfairDisplay_600SemiBold });
+    const [interLoaded] = useInterFonts({ Inter_400Regular, Inter_600SemiBold });
+    const fontsLoaded = pfLoaded && interLoaded;
     const months = [
-        'Январь',
-        'Февраль',
-        'Март',
-        'Апрель',
-        'Май',
-        'Июнь',
-        'Июль',
-        'Август',
-        'Сентябрь',
-        'Октябрь',
-        'Ноябрь',
-        'Декабрь',
+        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
     ];
 
     const getDaysInMonth = (month: number, year: number) => {
@@ -32,7 +28,9 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, 
     };
 
     const getFirstDayOfMonth = (month: number, year: number) => {
-        return new Date(year, month, 1).getDay();
+        const day = new Date(year, month, 1).getDay();
+        // Преобразуем воскресенье (0) в 7 для правильного отступа
+        return day === 0 ? 7 : day;
     };
 
     const daysInMonth = getDaysInMonth(currentMonth, currentYear);
@@ -46,32 +44,58 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, 
         return days;
     }, [daysInMonth]);
 
+    // Функция для преобразования даты в формат YYYY-MM-DD
+    const formatDate = (dateString: string) => {
+        return dateString.split('T')[0];
+    };
+
     const eventsByDate = useMemo(() => {
         const map: Record<string, Event[]> = {};
         events.forEach((event) => {
-            if (!map[event.date]) map[event.date] = [];
-            map[event.date].push(event);
+            const dateKey = formatDate(event.startAt);
+            if (!map[dateKey]) map[dateKey] = [];
+            map[dateKey].push(event);
         });
         return map;
     }, [events]);
 
+    const changeMonth = (newMonth: number, newYear: number) => {
+        setCurrentMonth(newMonth);
+        setCurrentYear(newYear);
+        if (onMonthChange) {
+            onMonthChange(newYear, newMonth);
+        }
+    };
+
     const prevMonth = () => {
         if (currentMonth === 0) {
-            setCurrentMonth(11);
-            setCurrentYear(currentYear - 1);
+            changeMonth(11, currentYear - 1);
         } else {
-            setCurrentMonth(currentMonth - 1);
+            changeMonth(currentMonth - 1, currentYear);
         }
     };
 
     const nextMonth = () => {
         if (currentMonth === 11) {
-            setCurrentMonth(0);
-            setCurrentYear(currentYear + 1);
+            changeMonth(0, currentYear + 1);
         } else {
-            setCurrentMonth(currentMonth + 1);
+            changeMonth(currentMonth + 1, currentYear);
         }
     };
+
+    const LoadingScreen: React.FC<LoadingScreenProps> = () => {
+        const insets = useSafeAreaInsets();
+
+        return (
+            <View style={[styles.loading, { paddingTop: insets.top }]}>
+                <ActivityIndicator size="large" color="#0a58ff" />
+            </View>
+        );
+    };
+
+    if (!fontsLoaded) {
+        return <LoadingScreen />;
+    }
 
     return (
         <View style={styles.calendarContainer}>
@@ -90,18 +114,17 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, 
                         {day}
                     </Text>
                 ))}
-                {Array(firstDay === 0 ? 6 : firstDay - 1)
+                {Array(firstDay - 1)
                     .fill(null)
                     .map((_, idx) => (
                         <View key={`empty-${idx}`} style={styles.calendarEmpty} />
                     ))}
-                {daysArray.map((day, index) => {
+                {daysArray.map((day) => {
                     const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day
                         .toString()
                         .padStart(2, '0')}`;
                     const hasEvents = !!eventsByDate[dateStr];
-                    // Определяем, является ли день последним в строке
-                    const isLastRow = index >= daysArray.length - 7;
+
                     return (
                         <TouchableOpacity
                             key={day}
@@ -109,7 +132,6 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, 
                                 styles.calendarDate,
                                 selectedDate === dateStr && styles.calendarDateSelected,
                                 hasEvents && styles.calendarDateWithEvents,
-                                isLastRow && styles.calendarDateLastRow, // Убираем marginBottom для последней строки
                             ]}
                             onPress={() => onSelectDate(dateStr)}
                         >
@@ -121,6 +143,7 @@ export const Calendar: React.FC<CalendarProps> = ({ selectedDate, onSelectDate, 
                             >
                                 {day}
                             </Text>
+                            {hasEvents && <View style={styles.eventDot} />}
                         </TouchableOpacity>
                     );
                 })}
@@ -134,12 +157,14 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 16,
+        paddingBottom: 0,
         marginBottom: 16,
         elevation: 4,
         shadowColor: '#000',
         shadowOpacity: 0.1,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
+        marginTop: 5,
     },
     calendarHeader: {
         flexDirection: 'row',
@@ -148,12 +173,12 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     calendarTitle: {
-        fontSize: 16,
+        fontSize: 20,
         fontFamily: 'PlayfairDisplay_600SemiBold',
         color: '#0b2340',
     },
     calendarNav: {
-        fontSize: 20,
+        fontSize: 22,
         color: '#0a58ff',
     },
     calendarGrid: {
@@ -173,7 +198,7 @@ const styles = StyleSheet.create({
         aspectRatio: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 4,
+        marginBottom: 8,
     },
     calendarDateLastRow: {
         marginBottom: 0, // Убираем отступ снизу для последней строки

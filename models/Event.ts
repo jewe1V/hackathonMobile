@@ -1,13 +1,14 @@
-export type Topic = 'Законопроекты' | 'Встречи' | 'Новости';
-
 export interface Event {
     id: string;
     title: string;
-    date: string; // ISO
-    content: string;
-    category: Topic;
-    image: string;
-    excerpt: string;
+    description: string;
+    startAt: string;
+    endAt: string;
+    location: string;
+    isPublic: boolean;
+    organizerId: string;
+    organizerFullName: string;
+    createdAt: string;
 }
 
 export interface Post {
