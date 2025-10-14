@@ -2,7 +2,7 @@ import {Image, StyleSheet, Text, TouchableOpacity, View, Alert} from "react-nati
 import React, { useState, useEffect } from "react";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import LoginScreen from './LoginScreen';
+import LoginScreen, {AuthTokenManager} from './LoginScreen';
 
 interface HeaderProps {
     title?: string;
@@ -66,14 +66,9 @@ export const Header: React.FC<HeaderProps> = ({
     };
 
     const handleLogout = async () => {
-        try {
-            await AsyncStorage.multiRemove(['authToken', 'userData']);
-            setIsAuthenticated(false);
-            setUserData(null);
-            console.log('Пользователь вышел из системы');
-        } catch (error) {
-            console.error('Ошибка при выходе:', error);
-        }
+        await AuthTokenManager.clearToken();
+        setIsAuthenticated(false);
+        setUserData(null);
     };
 
     const handleLoginSuccess = () => {
@@ -108,9 +103,9 @@ export const Header: React.FC<HeaderProps> = ({
                     onPress={handleAuthButtonPress}
                 >
                     <Ionicons
-                        name={isAuthenticated ? "person-outline" : "log-in-outline"}
+                        name={isAuthenticated ? "log-in-outline" : "person-outline"}
                         size={20}
-                        color={isAuthenticated ? "#2563EB" : "#6b7280"}
+                        color={isAuthenticated ? "#f64252" : "#6b7280"}
                     />
                 </TouchableOpacity>)}
             </View>
@@ -162,7 +157,7 @@ const styles = StyleSheet.create({
         borderColor: '#e5e7eb',
     },
     authenticatedButton: {
-        borderColor: '#2563EB',
+        borderColor: '#f64252',
         backgroundColor: '#f0f7ff',
     },
 });

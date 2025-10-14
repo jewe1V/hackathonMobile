@@ -15,8 +15,119 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import AppLoading from 'expo-app-loading';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Глобальное хранилище токена
+class AuthTokenManager {
+    private static token: string | null = null;
+    private static tokenExpiryTimer: NodeJS.Timeout | null = null;
+    private static tokenListeners: ((token: string | null) => void)[] = [];
+
+    static async initialize() {
+        // Восстанавливаем токен из AsyncStorage при запуске
+        try {
+            const storedToken = await AsyncStorage.getItem('authToken');
+            const tokenExpiry = await AsyncStorage.getItem('authTokenExpiry');
+
+            if (storedToken && tokenExpiry) {
+                const expiryTime = parseInt(tokenExpiry, 10);
+                if (Date.now() < expiryTime) {
+                    this.token = storedToken;
+                    this.scheduleTokenCleanup(expiryTime - Date.now());
+                } else {
+                    // Токен просрочен, очищаем
+                    await this.clearToken();
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing auth token:', error);
+        }
+    }
+
+    static getToken(): string | null {
+        return this.token;
+    }
+
+    static async setToken(token: string, expiresInMs: number = 60 * 60 * 1000) { // 1 час по умолчанию
+        this.token = token;
+
+        const expiryTime = Date.now() + expiresInMs;
+
+        // Сохраняем в AsyncStorage
+        try {
+            await AsyncStorage.setItem('authToken', token);
+            await AsyncStorage.setItem('authTokenExpiry', expiryTime.toString());
+        } catch (error) {
+            console.error('Error saving auth token:', error);
+        }
+
+        // Планируем очистку токена
+        this.scheduleTokenCleanup(expiresInMs);
+
+        // Уведомляем слушателей
+        this.notifyListeners();
+    }
+
+    static async clearToken() {
+        this.token = null;
+
+        // Очищаем таймер
+        if (this.tokenExpiryTimer) {
+            clearTimeout(this.tokenExpiryTimer);
+            this.tokenExpiryTimer = null;
+        }
+
+        // Удаляем из AsyncStorage
+        try {
+            await AsyncStorage.multiRemove(['authToken', 'authTokenExpiry']);
+        } catch (error) {
+            console.error('Error clearing auth token:', error);
+        }
+
+        // Уведомляем слушателей
+        this.notifyListeners();
+    }
+
+    private static scheduleTokenCleanup(expiresInMs: number) {
+        // Очищаем предыдущий таймер
+        if (this.tokenExpiryTimer) {
+            clearTimeout(this.tokenExpiryTimer);
+        }
+
+        // Устанавливаем новый таймер
+        // @ts-ignore
+        this.tokenExpiryTimer = setTimeout(() => {
+            this.clearToken();
+            console.log('Token automatically cleared after 1 hour');
+        }, expiresInMs);
+    }
+
+    static addListener(listener: (token: string | null) => void) {
+        this.tokenListeners.push(listener);
+
+        // Возвращаем функцию для удаления слушателя
+        return () => {
+            this.tokenListeners = this.tokenListeners.filter(l => l !== listener);
+        };
+    }
+
+    private static notifyListeners() {
+        this.tokenListeners.forEach(listener => {
+            try {
+                listener(this.token);
+            } catch (error) {
+                console.error('Error in token listener:', error);
+            }
+        });
+    }
+
+    static isTokenValid(): boolean {
+        return this.token !== null;
+    }
+}
+
+// Инициализируем менеджер при загрузке модуля
+AuthTokenManager.initialize();
 
 // Типы для ответа сервера
 interface User {
@@ -61,7 +172,11 @@ const LoginScreen: React.FC<LoginModalScreenProps> = ({
     });
 
     if (!fontsLoaded) {
-        return <AppLoading />;
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+            </View>
+        );
     }
 
     const handleLogin = async () => {
@@ -73,7 +188,7 @@ const LoginScreen: React.FC<LoginModalScreenProps> = ({
         setIsLoading(true);
 
         try {
-            const response = await fetch('https://localhost:7112/api/Auth/login', {
+            const response = await fetch('https://boardly.ru/api/Auth/login', {
                 method: 'POST',
                 headers: {
                     'accept': 'text/plain',
@@ -91,11 +206,13 @@ const LoginScreen: React.FC<LoginModalScreenProps> = ({
 
             const data: AuthResponse = await response.json();
 
-            // Сохраняем токен и данные пользователя в AsyncStorage
-            await AsyncStorage.setItem('authToken', data.token);
+            // Сохраняем токен в глобальное хранилище (автоматически очистится через час)
+            await AuthTokenManager.setToken(data.token);
+
+            // Сохраняем данные пользователя в AsyncStorage
             await AsyncStorage.setItem('userData', JSON.stringify(data.user));
 
-            console.log('Успешная авторизация, токен сохранен');
+            console.log('Успешная авторизация, токен сохранен в глобальное хранилище');
             onLoginSuccess();
             onClose();
 
@@ -175,6 +292,12 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+    },
     header: {
         alignItems: 'center',
         paddingTop: 60,
@@ -237,3 +360,4 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+export { AuthTokenManager };

@@ -21,7 +21,7 @@ const EventsScreen: React.FC = () => {
             const to = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
             const response = await fetch(
-                `https://localhost:7112/api/Events/upcoming?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+                `https://boardly.ru/api/Events/upcoming?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
                 {
                     headers: {
                         Accept: 'text/plain',

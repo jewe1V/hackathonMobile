@@ -22,7 +22,8 @@ export interface Post {
 }
 
 export interface ModalScreenProps {
-    modalPost: Post | null;
+    modalPost: any | null;
     onClose: () => void;
-    onShare: (post: Post) => void;
+    onShare: (post: any) => void;
+    onPostDelete?: (postId: string) => void; // Добавляем опциональный callback
 }
