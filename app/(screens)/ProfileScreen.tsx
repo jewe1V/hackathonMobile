@@ -14,10 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Profile } from '@/models/ProfileModel';
 import { Post } from '@/models/Event';
 import { AuthTokenManager } from '@/components/LoginScreen';
-import { ModalScreen } from '@/components/ModalScreen'; // Импортируем ModalScreen
+import { ModalScreen } from '@/components/ModalScreen';
 import {router} from "expo-router";
-
-const API_URL = 'https://boardly.ru/api/Auth/current';
+import {apiUrl} from "@/api/api";
 
 const ProfileScreen: React.FC = () => {
     const [profile, setProfile] = useState<Profile | null>(null);
@@ -66,7 +65,7 @@ const ProfileScreen: React.FC = () => {
 
         setLoading(true);
         try {
-            const response = await fetch(API_URL, {
+            const response = await fetch(`${apiUrl}/api/Auth/current`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',

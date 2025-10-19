@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from "@/components/Header";
+import {apiUrl} from "@/api/api";
 
 // Тип данных каталога
 export interface Catalog {
@@ -58,7 +59,7 @@ const CatalogScreen: React.FC = () => {
 
     const fetchCatalogs = async () => {
         try {
-            const response = await fetch('https://boardly.ru/api/Catalogs/my', {
+            const response = await fetch(`${apiUrl}/api/Catalogs/my`, {
                 method: 'GET',
                 headers: {
                     'accept': 'text/plain',
@@ -102,7 +103,7 @@ const CatalogScreen: React.FC = () => {
         try {
             if (editingCatalog) {
                 // Редактирование каталога (предполагаемый PUT запрос)
-                const response = await fetch(`https://boardly.ru/api/Catalogs/${editingCatalog.id}`, {
+                const response = await fetch(`${apiUrl}/api/Catalogs/${editingCatalog.id}`, {
                     method: 'PUT',
                     headers: {
                         'accept': 'text/plain',
@@ -122,8 +123,7 @@ const CatalogScreen: React.FC = () => {
                     Alert.alert('Ошибка', 'Не удалось обновить каталог');
                 }
             } else {
-                // Создание нового каталога
-                const url = 'https://boardly.ru/api/Catalogs';
+                const url = `${apiUrl}/api/Catalogs`;
                 const body: any = { name: catalogName };
                 if (currentCatalogId) {
                     body.parentCatalogId = currentCatalogId;
@@ -163,7 +163,7 @@ const CatalogScreen: React.FC = () => {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const response = await fetch(`https://boardly.ru/api/Catalogs/${catalog.id}`, {
+                            const response = await fetch(`${apiUrl}/api/Catalogs/${catalog.id}`, {
                                 method: 'DELETE',
                                 headers: {
                                     'accept': '*/*',

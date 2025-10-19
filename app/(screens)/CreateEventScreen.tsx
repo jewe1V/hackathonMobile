@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     View,
     Text,
@@ -13,10 +13,11 @@ import {
     Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { AuthTokenManager } from '@/components/LoginScreen';
+import DateTimePickerModal from "react-native-modal-datetime-picker"; // ✅ Новый импорт
+import { AuthTokenManager } from "@/components/LoginScreen";
+import { apiUrl } from "@/api/api";
 
 export default function CreateEventScreen() {
     const [title, setTitle] = useState("");
@@ -24,14 +25,12 @@ export default function CreateEventScreen() {
     const [location, setLocation] = useState("");
     const [startAt, setStartAt] = useState<Date | null>(null);
     const [endAt, setEndAt] = useState<Date | null>(null);
-    const [showStartPicker, setShowStartPicker] = useState(false);
-    const [showEndPicker, setShowEndPicker] = useState(false);
+    const [isStartPickerVisible, setStartPickerVisible] = useState(false);
+    const [isEndPickerVisible, setEndPickerVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const insets = useSafeAreaInsets();
-    const titleInputRef = useRef<TextInput>(null);
-    const descriptionInputRef = useRef<TextInput>(null);
-    const locationInputRef = useRef<TextInput>(null);
+    const scrollViewRef = useRef<ScrollView>(null);
 
     const handleCreate = async () => {
         if (!title.trim() || !startAt || !endAt) {
@@ -62,103 +61,64 @@ export default function CreateEventScreen() {
                 isPublic: true,
             };
 
-            console.log('Отправка данных:', eventData);
-
-            const response = await fetch('https://boardly.ru/api/Events', {
-                method: 'POST',
+            const response = await fetch(`${apiUrl}/api/Events`, {
+                method: "POST",
                 headers: {
-                    'accept': 'text/plain',
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
+                    accept: "text/plain",
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify(eventData),
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('Ошибка сервера:', response.status, errorText);
-
-                if (response.status === 401) {
-                    throw new Error('Недостаточно прав для создания события');
-                } else if (response.status === 400) {
-                    throw new Error('Неверные данные события');
-                } else {
-                    throw new Error(`Ошибка сервера: ${response.status}`);
-                }
+                console.error("Ошибка сервера:", response.status, errorText);
+                throw new Error(errorText || "Ошибка создания события");
             }
 
-            const createdEvent = await response.json();
-            console.log('Событие создано:', createdEvent);
-
-            Alert.alert(
-                "Успех",
-                "Событие успешно создано!",
-                [
-                    {
-                        text: "OK",
-                        onPress: () => {
-                            router.push('/(screens)/EventsScreen');
-                        },
-                    },
-                ],
-            );
+            clearForm();
+            router.push({ pathname: "/(screens)/EventsScreen", params: { refresh: "true" } });
+            Alert.alert("Событие успешно создано!");
         } catch (error: any) {
-            console.error('Ошибка при создании события:', error);
-            Alert.alert(
-                "Ошибка",
-                error.message || "Не удалось создать событие. Проверьте подключение к интернету.",
-            );
+            console.error(error);
+            Alert.alert("Ошибка", error.message || "Не удалось создать событие.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    const onStartDateChange = (event: any, selectedDate?: Date) => {
-        setShowStartPicker(false);
-        if (selectedDate) {
-            setStartAt(selectedDate);
-            if (!endAt || endAt <= selectedDate) {
-                const newEndDate = new Date(selectedDate);
-                newEndDate.setHours(newEndDate.getHours() + 2);
-                setEndAt(newEndDate);
-            }
-        }
-        Keyboard.dismiss(); // Закрываем клавиатуру при выборе даты
+    const clearForm = () => {
+        setTitle("");
+        setDescription("");
+        setLocation("");
+        setStartAt(null);
+        setEndAt(null);
     };
 
-    const onEndDateChange = (event: any, selectedDate?: Date) => {
-        setShowEndPicker(false);
-        if (selectedDate) {
-            setEndAt(selectedDate);
-        }
-        Keyboard.dismiss(); // Закрываем клавиатуру при выборе даты
-    };
-
-    const formatDateForDisplay = (date: Date | null): string => {
-        if (!date) return '';
-        return date.toLocaleString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
+    const formatDateForDisplay = (date: Date | null) => {
+        if (!date) return "";
+        return `${date.toLocaleDateString("ru-RU")} ${date.toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit",
+        })}`;
     };
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0} // Улучшенное смещение для iOS
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
             <ScrollView
+                ref={scrollViewRef}
                 contentContainerStyle={[styles.container, { paddingTop: insets.top + 10 }]}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled" // Позволяет тапать по элементам при открытой клавиатуре
             >
                 <View style={styles.header}>
                     <TouchableOpacity
-                        onPress={() => router.push('/(screens)/MenuScreen')}
+                        onPress={() => {
+                            clearForm();
+                            router.push("/(screens)/MenuScreen");
+                        }}
                         style={styles.backButton}
                         disabled={isLoading}
                     >
@@ -170,102 +130,57 @@ export default function CreateEventScreen() {
                 <View style={styles.card}>
                     <Text style={styles.label}>Название *</Text>
                     <TextInput
-                        ref={titleInputRef}
                         style={styles.input}
                         placeholder="Введите название"
                         value={title}
                         onChangeText={setTitle}
                         editable={!isLoading}
-                        returnKeyType="next"
-                        onSubmitEditing={() => descriptionInputRef.current?.focus()}
                     />
 
                     <Text style={styles.label}>Описание</Text>
                     <TextInput
-                        ref={descriptionInputRef}
                         style={[styles.input, styles.textArea]}
                         placeholder="Введите описание"
                         multiline
-                        numberOfLines={4}
                         value={description}
                         onChangeText={setDescription}
                         editable={!isLoading}
-                        returnKeyType="next"
-                        onSubmitEditing={() => locationInputRef.current?.focus()}
                     />
 
                     <Text style={styles.label}>Место проведения</Text>
                     <TextInput
-                        ref={locationInputRef}
                         style={styles.input}
-                        placeholder="Введите место проведения"
+                        placeholder="Введите место"
                         value={location}
                         onChangeText={setLocation}
                         editable={!isLoading}
-                        returnKeyType="done"
-                        onSubmitEditing={Keyboard.dismiss}
                     />
 
                     <Text style={styles.label}>Дата и время начала *</Text>
                     <TouchableOpacity
                         style={styles.dateInput}
-                        onPress={() => {
-                            setShowStartPicker(!showStartPicker);
-                            Keyboard.dismiss(); // Закрываем клавиатуру при открытии DateTimePicker
-                        }}
-                        disabled={isLoading}
+                        onPress={() => setStartPickerVisible(true)}
                     >
                         <Text style={startAt ? styles.dateText : styles.placeholderText}>
-                            {startAt ? formatDateForDisplay(startAt) : 'Выберите дату и время начала'}
+                            {startAt ? formatDateForDisplay(startAt) : "Выберите дату начала"}
                         </Text>
                         <Ionicons name="calendar-outline" size={20} color="#6b7280" />
                     </TouchableOpacity>
-                    {showStartPicker && (
-                        <View style={styles.datePickerContainer}>
-                            <DateTimePicker
-                                value={startAt || new Date()}
-                                mode="datetime"
-                                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                                onChange={onStartDateChange}
-                                minimumDate={new Date()}
-                                style={styles.datePicker}
-                            />
-                        </View>
-                    )}
 
                     <Text style={styles.label}>Дата и время окончания *</Text>
                     <TouchableOpacity
                         style={styles.dateInput}
-                        onPress={() => {
-                            setShowEndPicker(!showEndPicker);
-                            Keyboard.dismiss(); // Закрываем клавиатуру при открытии DateTimePicker
-                        }}
-                        disabled={isLoading}
+                        onPress={() => setEndPickerVisible(true)}
                     >
                         <Text style={endAt ? styles.dateText : styles.placeholderText}>
-                            {endAt ? formatDateForDisplay(endAt) : 'Выберите дату и время окончания'}
+                            {endAt ? formatDateForDisplay(endAt) : "Выберите дату окончания"}
                         </Text>
                         <Ionicons name="calendar-outline" size={20} color="#6b7280" />
                     </TouchableOpacity>
-                    {showEndPicker && (
-                        <View style={styles.datePickerContainer}>
-                            <DateTimePicker
-                                value={endAt || new Date()}
-                                mode="datetime"
-                                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                                onChange={onEndDateChange}
-                                minimumDate={startAt || new Date()}
-                                style={styles.datePicker}
-                            />
-                        </View>
-                    )}
                 </View>
 
                 <TouchableOpacity
-                    style={[
-                        styles.publishButton,
-                        isLoading && styles.publishButtonDisabled,
-                    ]}
+                    style={[styles.publishButton, isLoading && styles.publishButtonDisabled]}
                     onPress={handleCreate}
                     disabled={isLoading}
                 >
@@ -279,6 +194,36 @@ export default function CreateEventScreen() {
                     </Text>
                 </TouchableOpacity>
             </ScrollView>
+
+            {/* ✅ Новый безопасный DateTimePicker */}
+            <DateTimePickerModal
+                isVisible={isStartPickerVisible}
+                mode="datetime"
+                date={startAt || new Date()}
+                minimumDate={new Date()}
+                onConfirm={(date) => {
+                    setStartAt(date);
+                    setStartPickerVisible(false);
+                    if (!endAt || endAt <= date) {
+                        const end = new Date(date);
+                        end.setHours(end.getHours() + 2);
+                        setEndAt(end);
+                    }
+                }}
+                onCancel={() => setStartPickerVisible(false)}
+            />
+
+            <DateTimePickerModal
+                isVisible={isEndPickerVisible}
+                mode="datetime"
+                date={endAt || new Date()}
+                minimumDate={startAt || new Date()}
+                onConfirm={(date) => {
+                    setEndAt(date);
+                    setEndPickerVisible(false);
+                }}
+                onCancel={() => setEndPickerVisible(false)}
+            />
         </KeyboardAvoidingView>
     );
 }
@@ -287,12 +232,11 @@ const styles = StyleSheet.create({
     container: {
         flexGrow: 1,
         paddingHorizontal: 20,
-        paddingBottom: 20,
         backgroundColor: "#f8fafc",
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         marginBottom: 25,
         paddingVertical: 12,
     },
@@ -302,8 +246,8 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 20,
-        fontWeight: '700',
-        color: '#333',
+        fontWeight: "700",
+        color: "#333",
     },
     card: {
         backgroundColor: "#fff",
@@ -321,7 +265,7 @@ const styles = StyleSheet.create({
         color: "#555",
         marginBottom: 6,
         marginTop: 12,
-        fontWeight: '600',
+        fontWeight: "600",
     },
     input: {
         backgroundColor: "#f7f7f7",
@@ -335,12 +279,12 @@ const styles = StyleSheet.create({
     },
     textArea: {
         height: 200,
-        textAlignVertical: 'top',
+        textAlignVertical: "top",
     },
     dateInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         backgroundColor: "#f7f7f7",
         borderWidth: 1,
         borderColor: "#ddd",
@@ -351,22 +295,11 @@ const styles = StyleSheet.create({
     },
     dateText: {
         fontSize: 15,
-        color: '#333',
+        color: "#333",
     },
     placeholderText: {
         fontSize: 15,
-        color: '#9ca3af',
-    },
-    datePickerContainer: {
-        backgroundColor: "#f7f7f7",
-        borderWidth: 1,
-        borderColor: "#ddd",
-        borderRadius: 10,
-        marginBottom: 14,
-        overflow: 'hidden',
-    },
-    datePicker: {
-        width: '100%',
+        color: "#9ca3af",
     },
     publishButton: {
         backgroundColor: "#0a57fd",
@@ -389,5 +322,26 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         marginLeft: 8,
+    },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: "flex-end",
+    },
+    modalContainer: {
+        backgroundColor: "#fff",
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        padding: 20,
+        width: "100%",
+    },
+    iosPickerHeader: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        paddingBottom: 10,
+    },
+    iosPickerButton: {
+        fontSize: 16,
+        color: "#0a57fd",
+        fontWeight: "600",
     },
 });

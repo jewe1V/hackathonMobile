@@ -14,12 +14,12 @@ import { ModalScreenProps } from "@/models/Event";
 import { getDisplayDate } from "@/utils";
 import { AuthTokenManager } from '@/components/LoginScreen';
 import { Ionicons } from '@expo/vector-icons';
+import {apiUrl} from "@/api/api";
 
 export const ModalScreen: React.FC<ModalScreenProps> = ({
                                                             modalPost,
                                                             onClose,
-                                                            onShare,
-                                                            onPostDelete // Добавляем callback для уведомления об удалении
+                                                            onPostDelete
                                                         }) => {
     const insets = useSafeAreaInsets();
     const [isDeleting, setIsDeleting] = useState(false);
@@ -48,7 +48,7 @@ export const ModalScreen: React.FC<ModalScreenProps> = ({
                     onPress: async () => {
                         setIsDeleting(true);
                         try {
-                            const response = await fetch(`https://boardly.ru/api/Posts/${modalPost.id}`, {
+                            const response = await fetch(`${apiUrl}/api/Posts/${modalPost.id}`, {
                                 method: 'DELETE',
                                 headers: {
                                     'accept': '*/*',
@@ -111,13 +111,6 @@ export const ModalScreen: React.FC<ModalScreenProps> = ({
                                 )}
                             </TouchableOpacity>
                         )}
-
-                        <TouchableOpacity
-                            onPress={() => onShare(modalPost)}
-                            style={styles.headerButton}
-                        >
-                            <Ionicons name="share-outline" size={20} color="#0a58ff" />
-                        </TouchableOpacity>
                     </View>
                 )}
             </View>

@@ -3,10 +3,12 @@ import {Header} from "@/components/Header";
 import {router} from "expo-router";
 import {Ionicons} from "@expo/vector-icons";
 import React from "react";
+import {useSafeAreaInsets} from "react-native-safe-area-context";
 
 const MenuScreen = () => {
+    const insets = useSafeAreaInsets();
     return (
-        <View style={styles.menuContainer}>
+        <View style={[styles.menuContainer, { paddingTop: insets.top }]}>
             <Header title={'Выберите действие'} isUserButton={false}/>
             <View style={styles.postCardContainer}>
                 <TouchableOpacity
@@ -29,11 +31,10 @@ const MenuScreen = () => {
     );
 }
 const styles = StyleSheet.create({
-    // --- Главное меню ---
     menuContainer: {
         flex: 1,
         backgroundColor: '#f1f2f4',
-        padding: 24,
+        paddingHorizontal: 16,
     },
     postCardContainer: {
         justifyContent: 'center',

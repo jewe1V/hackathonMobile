@@ -1,49 +1,85 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    ActivityIndicator,
+    RefreshControl
+} from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Calendar } from '@/components/Calendar';
 import { EventCard } from '@/components/EventCard';
 import { Event } from '@/models/Event';
 import { Header } from "@/components/Header";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiUrl } from "@/api/api";
+
+type RouteParams = {
+    params?: {
+        refresh?: string;
+    };
+};
 
 const EventsScreen: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string | undefined>();
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
+    const route = useRoute<RouteProp<RouteParams>>();
 
-    const loadEvents = async (year: number, month: number) => {
+    const loadEvents = useCallback(async (year: number, month: number, isRefresh = false) => {
         try {
-            setLoading(true);
+            if (!isRefresh) setLoading(true);
             const from = new Date(year, month, 1).toISOString();
             const to = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
             const response = await fetch(
-                `https://boardly.ru/api/Events/upcoming?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+                `${apiUrl}/api/Events/upcoming?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
                 {
-                    headers: {
-                        Accept: 'text/plain',
-                    }
+                    headers: { Accept: 'text/plain' },
                 }
             );
 
             if (!response.ok) throw new Error('Ошибка загрузки событий');
+
             const data: Event[] = await response.json();
             setEvents(data);
         } catch (e) {
-            console.error(e);
+            console.error('Ошибка при загрузке событий:', e);
         } finally {
-            setLoading(false);
+            if (isRefresh) setRefreshing(false);
+            else setLoading(false);
         }
+    }, []);
+
+    const refreshNow = async () => {
+        const now = new Date();
+        await loadEvents(now.getFullYear(), now.getMonth(), true);
     };
 
-    // Подгружаем события за текущий месяц при первом рендере
+    // Первичная загрузка
     useEffect(() => {
         const now = new Date();
         loadEvents(now.getFullYear(), now.getMonth());
-    }, []);
+    }, [loadEvents]);
+
+    // 🔄 Проверка параметра refresh
+    useEffect(() => {
+        if (route.params?.refresh === 'true') {
+            refreshNow();
+            // сбрасываем параметр, чтобы не было повторных перезагрузок
+            navigation.setParams({ refresh: undefined } as any);
+        }
+    }, [route.params?.refresh]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        const now = new Date();
+        await loadEvents(now.getFullYear(), now.getMonth(), true);
+    };
 
     const filteredEvents = useMemo(() => {
         if (selectedDate) {
@@ -70,7 +106,7 @@ const EventsScreen: React.FC = () => {
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
                 events={events}
-                onMonthChange={loadEvents} // 👈 загрузка при смене месяца
+                onMonthChange={loadEvents}
             />
 
             {loading ? (
@@ -105,6 +141,14 @@ const EventsScreen: React.FC = () => {
                     }}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#0a58ff']}
+                            tintColor="#0a58ff"
+                        />
+                    }
                 />
             )}
         </View>

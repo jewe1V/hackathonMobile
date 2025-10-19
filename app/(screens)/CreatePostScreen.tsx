@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MenuScreen from './MenuScreen'
 import {Header} from "@/components/Header";
+import {apiUrl} from "@/api/api";
 
 const CreateOrPlanScreen = ({ navigation }: any) => {
 
@@ -38,7 +39,7 @@ const CreateOrPlanScreen = ({ navigation }: any) => {
             const token = await AsyncStorage.getItem('authToken');
             if (!token) throw new Error('Токен не найден');
 
-            const response = await fetch('https://boardly.ru/api/Posts', {
+            const response = await fetch(`${apiUrl}/api/Posts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -58,8 +59,11 @@ const CreateOrPlanScreen = ({ navigation }: any) => {
             }
 
             await response.json();
-            Alert.alert('Успех', 'Пост успешно опубликован!');
-            router.push('/');
+            Alert.alert('Пост успешно опубликован!');
+            router.push({
+                pathname: '/',
+                params: { refresh: 'true' },
+            });
         } catch (error) {
             Alert.alert('Ошибка', String(error));
         } finally {

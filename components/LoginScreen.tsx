@@ -16,15 +16,14 @@ import { useNavigation } from '@react-navigation/native';
 import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {apiUrl} from "@/api/api";
 
-// Глобальное хранилище токена
 class AuthTokenManager {
     private static token: string | null = null;
     private static tokenExpiryTimer: NodeJS.Timeout | null = null;
     private static tokenListeners: ((token: string | null) => void)[] = [];
 
     static async initialize() {
-        // Восстанавливаем токен из AsyncStorage при запуске
         try {
             const storedToken = await AsyncStorage.getItem('authToken');
             const tokenExpiry = await AsyncStorage.getItem('authTokenExpiry');
@@ -53,7 +52,6 @@ class AuthTokenManager {
 
         const expiryTime = Date.now() + expiresInMs;
 
-        // Сохраняем в AsyncStorage
         try {
             await AsyncStorage.setItem('authToken', token);
             await AsyncStorage.setItem('authTokenExpiry', expiryTime.toString());
@@ -71,13 +69,11 @@ class AuthTokenManager {
     static async clearToken() {
         this.token = null;
 
-        // Очищаем таймер
         if (this.tokenExpiryTimer) {
             clearTimeout(this.tokenExpiryTimer);
             this.tokenExpiryTimer = null;
         }
 
-        // Удаляем из AsyncStorage
         try {
             await AsyncStorage.multiRemove(['authToken', 'authTokenExpiry']);
         } catch (error) {
@@ -89,12 +85,10 @@ class AuthTokenManager {
     }
 
     private static scheduleTokenCleanup(expiresInMs: number) {
-        // Очищаем предыдущий таймер
         if (this.tokenExpiryTimer) {
             clearTimeout(this.tokenExpiryTimer);
         }
 
-        // Устанавливаем новый таймер
         // @ts-ignore
         this.tokenExpiryTimer = setTimeout(() => {
             this.clearToken();
@@ -188,7 +182,7 @@ const LoginScreen: React.FC<LoginModalScreenProps> = ({
         setIsLoading(true);
 
         try {
-            const response = await fetch('https://boardly.ru/api/Auth/login', {
+            const response = await fetch(`${apiUrl}/api/Auth/login`, {
                 method: 'POST',
                 headers: {
                     'accept': 'text/plain',
